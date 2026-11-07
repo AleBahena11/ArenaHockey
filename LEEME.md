@@ -1,15 +1,12 @@
 # Arena de Hockey sobre Hielo
 
 Proyecto Final de Computación Gráfica e Interacción Humano-Computadora (FI UNAM).
-Iteración 1: planeación, diseño y configuración del proyecto.
+Iteración 2: pista de juego.
 
 ## Qué tiene esta versión
 
-- Ventana con OpenGL 3.3, cámara en primera persona (teclado y mouse, con `deltaTime`).
-- Un cubo con posición, normal y coordenadas de textura (VAO y VBO), que es la base de todo el escenario.
-- Shader con luz direccional (Phong) y textura.
-- Piso del recinto (90 × 50 m) y un cubo de prueba.
-- `docs/`: el acta del proyecto y el plano de la arena con las medidas.
+- **Zona 1, pista de juego:** hielo de 61 × 26 m con la línea roja, las líneas azules, las líneas de gol, los cinco círculos de saque, los puntos de cara a cara y las áreas de portero (todo en la textura del hielo).
+- Vallas con publicidad, cristal protector semitransparente (`GL_BLEND`) y dos porterías con red (la red usa `discard` en los huecos).
 
 ## Controles
 
@@ -24,7 +21,7 @@ Iteración 1: planeación, diseño y configuración del proyecto.
 - `Main.cpp`: el programa.
 - `Shader.h`, `Camera.h`, `stb_image.h`: clases de las prácticas.
 - `Shader/`: `lighting.vs` y `lighting.frag`.
-- `Textures/`: piso y concreto.
+- `Textures/`: hielo, vallas, red, cristal y colores.
 - `docs/`: acta y plano.
 
 ## Cómo abrirlo en Visual Studio 2022
@@ -45,7 +42,6 @@ Iteración 1: planeación, diseño y configuración del proyecto.
 
 ## Lo que sigue
 
-- Iteración 2: pista con marcas, vallas, cristal y porterías.
 - Iteración 3: bancas, gradas, público, marcador y carga de modelos.
 - Iteración 4: jugadores, portero y árbitro, cámaras e iluminación.
 - Iteración 5: animación por cuadros clave, interacción, pruebas, documentación y video.

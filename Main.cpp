@@ -2,11 +2,11 @@
  * Proyecto Final: Arena de Hockey sobre Hielo
  * Laboratorio de Computación Gráfica e Interacción Humano-Computadora, FI UNAM
  *
- * Iteración 1: configuración del proyecto.
- * Contiene la ventana, la cámara en primera persona, el cubo con el que armaremos todo
- * el escenario y un shader con luz direccional y textura.
+ * Iteración 2: la pista de juego.
+ * Contiene el hielo de 61 x 26 m con sus marcas (líneas, círculos de saque y áreas de portero),
+ * las vallas con publicidad, el cristal protector y las dos porterías con su red.
  *
- * Se ve el piso de la arena (90 x 50 m) y un cubo de prueba en el centro.
+ * Se ve la pista completa, todavía sin bancas, gradas ni jugadores.
  *
  * Qué se puede hacer:
  *   W A S D moverse        Mouse mirar        ESC salir
@@ -35,11 +35,11 @@
 #include "stb_image.h"
 
 // Prototipos de las funciones
-void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
-void MouseCallback(GLFWwindow* window, double xPos, double yPos);
+void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
+void MouseCallback(GLFWwindow *window, double xPos, double yPos);
 void DoMovement();
-GLuint CargarTextura(const char* ruta);
-void DibujarCubo(Shader& shader, glm::vec3 posicion, glm::vec3 escala, GLuint textura, float rotacionY = 0.0f);
+GLuint CargarTextura(const char *ruta);
+void DibujarCubo(Shader &shader, glm::vec3 posicion, glm::vec3 escala, GLuint textura, float rotacionY = 0.0f);
 
 // Tamaño de la ventana
 const GLuint WIDTH = 1280, HEIGHT = 720;
@@ -66,7 +66,7 @@ int main()
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Proyecto Final - Arena de Hockey", nullptr, nullptr);
+	GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Proyecto Final - Arena de Hockey", nullptr, nullptr);
 	if (nullptr == window)
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -124,20 +124,20 @@ int main()
 		 0.5f, -0.5f, -0.5f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f,
 		 0.5f, -0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 0.0f,
 		 0.5f,  0.5f,  0.5f,  1.0f,  0.0f,  0.0f,  0.0f, 1.0f,
-		 // Abajo
-		 -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
-		  0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 1.0f,
-		  0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
-		  0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
-		 -0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 0.0f,
-		 -0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
-		 // Arriba
-		 -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
-		  0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
-		  0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
-		  0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
-		 -0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f,
-		 -0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f
+		// Abajo
+		-0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
+		 0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 1.0f,
+		 0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
+		 0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  1.0f, 0.0f,
+		-0.5f, -0.5f,  0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 0.0f,
+		-0.5f, -0.5f, -0.5f,  0.0f, -1.0f,  0.0f,  0.0f, 1.0f,
+		// Arriba
+		-0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f,
+		 0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 1.0f,
+		 0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
+		 0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  1.0f, 0.0f,
+		-0.5f,  0.5f,  0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 0.0f,
+		-0.5f,  0.5f, -0.5f,  0.0f,  1.0f,  0.0f,  0.0f, 1.0f
 	};
 
 	GLuint VBO, VAO;
@@ -147,20 +147,25 @@ int main()
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 	// Posición
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)0);
 	glEnableVertexAttribArray(0);
 	// Normal
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)(3 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(1);
 	// Coordenadas de textura
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid*)(6 * sizeof(GLfloat)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), (GLvoid *)(6 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(2);
 	glBindVertexArray(0);
 
 	// Cargamos las texturas
+	GLuint texHielo = CargarTextura("Textures/pista_hielo.png");
+	GLuint texValla1 = CargarTextura("Textures/valla1.png");
+	GLuint texValla2 = CargarTextura("Textures/valla2.png");
+	GLuint texRed = CargarTextura("Textures/red.png");
+	GLuint texCristal = CargarTextura("Textures/cristal.png");
+	GLuint texRojo = CargarTextura("Textures/rojo.png");
 	GLuint texGris = CargarTextura("Textures/gris.png");
-	GLuint texConcreto = CargarTextura("Textures/concreto.png");
-
+	GLuint texBlancoTela = CargarTextura("Textures/blanco_tela.png");
 	glm::mat4 projection = glm::perspective(camera.GetZoom(), (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 0.1f, 200.0f);
 
 	// Ciclo principal
@@ -203,13 +208,62 @@ int main()
 		glActiveTexture(GL_TEXTURE0);
 		glBindVertexArray(VAO);
 
-		// Escenario
+		// Zona 1: la pista de juego
 
 		// Piso de toda la arena
 		DibujarCubo(lightingShader, glm::vec3(0.0f, -0.05f, 0.0f), glm::vec3(90.0f, 0.1f, 50.0f), texGris);
 
-		// Cubo de prueba con textura, para revisar la luz y la cámara
-		DibujarCubo(lightingShader, glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(2.0f, 2.0f, 2.0f), texConcreto);
+		// Hielo: la textura ya trae las líneas, los círculos y las áreas de portero
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(60.96f, 0.02f, 25.91f), texHielo);
+
+		// Vallas: cada tramo es un cubo blanco y un panel delgado con la publicidad del lado de
+		// la pista (si le ponemos la textura a todo el cubo, desde las gradas se ve al revés).
+		// Lados largos: 15 tramos de 4.064 m
+		for (int i = 0; i < 15; i++)
+		{
+			float x = -30.48f + 4.064f * (i + 0.5f);
+			GLuint tex = (i % 2 == 0) ? texValla1 : texValla2;
+			DibujarCubo(lightingShader, glm::vec3(x, 0.535f, -13.03f), glm::vec3(4.064f, 1.07f, 0.15f), texBlancoTela);
+			DibujarCubo(lightingShader, glm::vec3(x, 0.535f, 13.03f), glm::vec3(4.064f, 1.07f, 0.15f), texBlancoTela);
+			DibujarCubo(lightingShader, glm::vec3(x, 0.535f, -12.949f), glm::vec3(4.064f, 1.07f, 0.01f), tex, 0.0f);
+			DibujarCubo(lightingShader, glm::vec3(x, 0.535f, 12.949f), glm::vec3(4.064f, 1.07f, 0.01f), tex, 180.0f);
+		}
+		// Fondos: 6 tramos de 4.318 m (los paneles se giran para que la publicidad mire a la pista)
+		for (int i = 0; i < 6; i++)
+		{
+			float z = -12.955f + 4.318f * (i + 0.5f);
+			GLuint tex = (i % 2 == 0) ? texValla2 : texValla1;
+			DibujarCubo(lightingShader, glm::vec3(30.555f, 0.535f, z), glm::vec3(0.15f, 1.07f, 4.318f), texBlancoTela);
+			DibujarCubo(lightingShader, glm::vec3(-30.555f, 0.535f, z), glm::vec3(0.15f, 1.07f, 4.318f), texBlancoTela);
+			DibujarCubo(lightingShader, glm::vec3(30.474f, 0.535f, z), glm::vec3(4.318f, 1.07f, 0.01f), tex, -90.0f);
+			DibujarCubo(lightingShader, glm::vec3(-30.474f, 0.535f, z), glm::vec3(4.318f, 1.07f, 0.01f), tex, 90.0f);
+		}
+
+		// Porterías: una en cada línea de gol (a 3.35 m del fondo)
+		for (int lado = -1; lado <= 1; lado += 2)
+		{
+			float gx = 27.13f * lado;      // línea de gol
+			float atras = 1.0f * lado;     // la red va hacia el fondo de la pista
+			// Postes y travesaño (rojos)
+			DibujarCubo(lightingShader, glm::vec3(gx, 0.61f, -0.915f), glm::vec3(0.06f, 1.22f, 0.06f), texRojo);
+			DibujarCubo(lightingShader, glm::vec3(gx, 0.61f, 0.915f), glm::vec3(0.06f, 1.22f, 0.06f), texRojo);
+			DibujarCubo(lightingShader, glm::vec3(gx, 1.22f, 0.0f), glm::vec3(0.06f, 0.06f, 1.89f), texRojo);
+			// Red: atrás, arriba y a los lados
+			DibujarCubo(lightingShader, glm::vec3(gx + atras, 0.61f, 0.0f), glm::vec3(0.02f, 1.22f, 1.83f), texRed);
+			DibujarCubo(lightingShader, glm::vec3(gx + atras / 2, 1.22f, 0.0f), glm::vec3(1.0f, 0.02f, 1.83f), texRed);
+			DibujarCubo(lightingShader, glm::vec3(gx + atras / 2, 0.61f, -0.915f), glm::vec3(1.0f, 1.22f, 0.02f), texRed);
+			DibujarCubo(lightingShader, glm::vec3(gx + atras / 2, 0.61f, 0.915f), glm::vec3(1.0f, 1.22f, 0.02f), texRed);
+		}
+
+		// Cristal protector: va al final porque es transparente
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBindVertexArray(VAO);
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 1.97f, -13.03f), glm::vec3(60.96f, 1.8f, 0.02f), texCristal);
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 1.97f, 13.03f), glm::vec3(60.96f, 1.8f, 0.02f), texCristal);
+		DibujarCubo(lightingShader, glm::vec3(30.555f, 1.97f, 0.0f), glm::vec3(0.02f, 1.8f, 25.91f), texCristal);
+		DibujarCubo(lightingShader, glm::vec3(-30.555f, 1.97f, 0.0f), glm::vec3(0.02f, 1.8f, 25.91f), texCristal);
+		glDisable(GL_BLEND);
 
 		glBindVertexArray(0);
 
@@ -223,7 +277,7 @@ int main()
 }
 
 // Dibuja el cubo en una posición, con su tamaño, su textura y un giro en Y
-void DibujarCubo(Shader& shader, glm::vec3 posicion, glm::vec3 escala, GLuint textura, float rotacionY)
+void DibujarCubo(Shader &shader, glm::vec3 posicion, glm::vec3 escala, GLuint textura, float rotacionY)
 {
 	glm::mat4 model(1);
 	model = glm::translate(model, posicion);
@@ -235,7 +289,7 @@ void DibujarCubo(Shader& shader, glm::vec3 posicion, glm::vec3 escala, GLuint te
 }
 
 // Carga una imagen con stb_image y la convierte en textura
-GLuint CargarTextura(const char* ruta)
+GLuint CargarTextura(const char *ruta)
 {
 	GLuint texture;
 	glGenTextures(1, &texture);
@@ -247,7 +301,7 @@ GLuint CargarTextura(const char* ruta)
 
 	int textureWidth, textureHeight, nrChannels;
 	stbi_set_flip_vertically_on_load(true);
-	unsigned char* image = stbi_load(ruta, &textureWidth, &textureHeight, &nrChannels, 4);
+	unsigned char *image = stbi_load(ruta, &textureWidth, &textureHeight, &nrChannels, 4);
 	if (image)
 	{
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textureWidth, textureHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
@@ -275,7 +329,7 @@ void DoMovement()
 }
 
 // Teclas
-void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode)
+void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode)
 {
 	if (GLFW_KEY_ESCAPE == key && GLFW_PRESS == action)
 		glfwSetWindowShouldClose(window, GL_TRUE);
@@ -290,7 +344,7 @@ void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode
 }
 
 // Hacia dónde mira la cámara
-void MouseCallback(GLFWwindow* window, double xPos, double yPos)
+void MouseCallback(GLFWwindow *window, double xPos, double yPos)
 {
 	if (firstMouse)
 	{

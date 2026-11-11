@@ -1,4 +1,4 @@
-# Modelos de la arena hechos en Blender 4.2 (público, palo, botella y disco).
+# Modelos de la arena hechos en Blender 4.2 (público, palo, botella, disco y portería).
 # Cada modelo se arma con primitivas de Blender, se une en un solo objeto con una textura
 # de colores (paleta de 4 x 4 cuadros) y se exporta a .obj para cargarlo con Assimp.
 # Se guarda también el .blend de cada uno para poder abrirlo y modificarlo en Blender.
@@ -81,28 +81,41 @@ def paleta(nombre, colores):
     img.filepath_raw = os.path.join(SALIDA, nombre + '.png'); img.file_format = 'PNG'; img.save()
     return img
 
-def terminar(nombre, colores):
-    global piezas
-    img = paleta(nombre, colores)
+def material(nombre, img):
     mat = bpy.data.materials.new(nombre); mat.use_nodes = True
     bsdf = mat.node_tree.nodes['Principled BSDF']
     tex = mat.node_tree.nodes.new('ShaderNodeTexImage'); tex.image = img; tex.interpolation = 'Closest'
     mat.node_tree.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+    mat.node_tree.links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
     bsdf.inputs['Roughness'].default_value = 0.7
-    # Unir todas las piezas en un solo objeto
+    return mat
+
+def unir_con_material(nombre, img):
+    # Une todas las piezas en un solo objeto con un material
+    global piezas
     bpy.ops.object.select_all(action='DESELECT')
     for o in piezas: o.select_set(True)
     bpy.context.view_layer.objects.active = piezas[0]
     bpy.ops.object.join()
     obj = bpy.context.object; obj.name = nombre; obj.data.name = nombre
-    obj.data.materials.clear(); obj.data.materials.append(mat)
+    obj.data.materials.clear(); obj.data.materials.append(material(nombre, img))
+    piezas = []
+    return obj
+
+def exportar(nombre):
+    obj = bpy.context.object; obj.name = nombre
+    bpy.ops.object.select_all(action='DESELECT'); obj.select_set(True)
     bpy.ops.wm.obj_export(filepath=os.path.join(SALIDA, nombre + '.obj'), export_selected_objects=True,
                           export_uv=True, export_normals=True, export_materials=True, apply_modifiers=True,
                           path_mode='STRIP', forward_axis='NEGATIVE_Z', up_axis='Y')
     bpy.ops.file.pack_all()
     os.makedirs(os.path.join(SALIDA, 'blender'), exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(SALIDA, 'blender', nombre + '.blend'))
-    piezas = []
+
+def terminar(nombre, colores):
+    img = paleta(nombre, colores)
+    unir_con_material(nombre, img)
+    exportar(nombre)
 
 # Aficionado sentado en su asiento
 def aficionado(nombre, playera, franja):
@@ -160,7 +173,61 @@ def disco():
     bpy.ops.object.shade_smooth_by_angle(angle=math.radians(45)); o.select_set(False)
     terminar('disco', {NEGRO: (18, 18, 20)})
 
+# Portería (reglamento: 1.83 m de ancho por 1.22 m de alto). La boca queda en x = 0 y la red va hacia +x.
+def porteria():
+    limpiar()
+    ROJO, BLANCO = (0, 0), (1, 0)
+    r = 0.03
+    ancho, alto, fondo, fondo_arriba = 0.945, 1.25, 1.0, 0.45
+    cilindro((0, 0, -ancho), (0, alto, -ancho), r, ROJO)            # poste izquierdo
+    cilindro((0, 0, ancho), (0, alto, ancho), r, ROJO)              # poste derecho
+    cilindro((0, alto, -ancho), (0, alto, ancho), r, ROJO)          # travesaño
+    # Base curva (forma de D) hecha con tramos de tubo
+    n = 12
+    puntos = [(fondo * math.sin(math.pi * i / n), 0.02, ancho * math.cos(math.pi * i / n)) for i in range(n + 1)]
+    for a, b in zip(puntos[:-1], puntos[1:]):
+        cilindro(a, b, 0.02, BLANCO, seg=8)
+    # Unir el marco en un objeto con su paleta de colores
+    img = paleta('porteria', {ROJO: (200, 25, 30), BLANCO: (240, 240, 240)})
+    marco = unir_con_material('porteria', img)
+    # Red: una superficie curva (lados y fondo) y la parte de arriba
+    malla = bpy.data.meshes.new('red'); bm = bmesh.new(); uv = bm.loops.layers.uv.new('UVMap')   # mismo nombre que el del marco, para que no se pierda al unir
+    def superficie(punto, nu, nv, uvf):
+        vs = [[bm.verts.new(punto(i / nu, j / nv)) for j in range(nv + 1)] for i in range(nu + 1)]
+        for i in range(nu):
+            for j in range(nv):
+                f = bm.faces.new((vs[i][j], vs[i + 1][j], vs[i + 1][j + 1], vs[i][j + 1]))
+                for loop, (a, b) in zip(f.loops, ((i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1))):
+                    loop[uv].uv = uvf(a / nu, b / nv)
+    def lado(u, v):   # u: de un poste al otro rodeando el fondo; v: de abajo hacia arriba
+        t = math.pi * u; h = alto * v
+        prof = fondo - (fondo - fondo_arriba) * v
+        return P(prof * math.sin(t), h, ancho * math.cos(t))
+    superficie(lado, 24, 6, lambda u, v: (u * 3.4 / 0.1, v * alto / 0.1))
+    def techo(u, v):  # del travesaño hacia atrás
+        t = math.pi * u
+        return P(fondo_arriba * v * math.sin(t), alto, ancho * math.cos(t))
+    superficie(techo, 24, 3, lambda u, v: (u * 2.2 / 0.1, v * fondo_arriba / 0.1))
+    bm.to_mesh(malla); bm.free()
+    red = bpy.data.objects.new('red', malla); bpy.context.collection.objects.link(red)
+    # Textura de la red: un cuadro de 10 cm con su hilo; se repite sobre la superficie
+    tex = bpy.data.images.new('red_porteria', 64, 64, alpha=True)
+    px = []
+    for y in range(64):
+        for x in range(64):
+            hilo = x < 4 or y < 4
+            px += [0.95, 0.95, 0.95, 1.0 if hilo else 0.0]
+    tex.pixels = px
+    tex.filepath_raw = os.path.join(SALIDA, 'red_porteria.png'); tex.file_format = 'PNG'; tex.save()
+    mat = material('red_porteria', tex)
+    red.data.materials.append(mat)
+    # Marco y red en un solo objeto (cada parte conserva su material)
+    bpy.ops.object.select_all(action='DESELECT')
+    marco.select_set(True); red.select_set(True); bpy.context.view_layer.objects.active = marco
+    bpy.ops.object.join()
+    exportar('porteria')
+
 aficionado('aficionado_local', (200, 30, 40), (245, 245, 245))
 aficionado('aficionado_visita', (25, 70, 170), (240, 200, 30))
-palo(); botella(); disco()
+palo(); botella(); disco(); porteria()
 print('MODELOS LISTOS')

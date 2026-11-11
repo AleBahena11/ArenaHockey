@@ -2,15 +2,20 @@
  * Proyecto Final: Arena de Hockey sobre Hielo
  * Laboratorio de Computación Gráfica e Interacción Humano-Computadora, FI UNAM
  *
- * Iteración 3: bancas, gradas, público, marcador y carga de modelos.
- * Contiene la zona de bancas (bancas de los equipos, cajas de castigo y mesa de oficiales),
- * las gradas en los cuatro lados, el marcador colgante y los modelos cargados con Assimp
- * (público, palos, botellas y disco).
+ * Iteración 4: jugadores, cámaras e iluminación.
+ * Contiene los jugadores, los porteros y el árbitro hechos con modelado jerárquico, la animación
+ * del jugador que patina, la cámara de transmisión y la iluminación de la práctica de
+ * Iluminación II (luz direccional, reflectores del techo, luces de gol y un reflector que sigue al jugador).
  *
- * Se ve la arena completa con su público, todavía sin jugadores. El marcador está en 0 - 0.
+ * Se ve la arena con los dos equipos en la pista y un jugador con el disco iluminado desde el techo.
  *
  * Qué se puede hacer:
  *   W A S D moverse        Mouse mirar        ESC salir
+ *   P el jugador empieza o deja de patinar con el disco
+ *   C cambiar entre la cámara libre y la cámara de transmisión
+ *   L prender y apagar los reflectores del techo
+ *   1 / 2 gol del local / del visitante (sube el marcador y prende la luz de gol)
+ *   0 regresar el marcador a 0 - 0
  */
 
 #include <iostream>
@@ -41,8 +46,12 @@
 void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode);
 void MouseCallback(GLFWwindow *window, double xPos, double yPos);
 void DoMovement();
+void Animation();
 GLuint CargarTextura(const char *ruta);
 void DibujarCubo(Shader &shader, glm::vec3 posicion, glm::vec3 escala, GLuint textura, float rotacionY = 0.0f);
+void DibujarParte(Shader &shader, glm::mat4 model, glm::vec3 escala, GLuint textura);
+void DibujarPersona(Shader &shader, glm::vec3 posicion, float rotacion, float angPierna, float angBrazo,
+	GLuint texCamiseta, GLuint texPantalon, int tipo);
 
 // Tamaño de la ventana
 const GLuint WIDTH = 1280, HEIGHT = 720;
@@ -55,9 +64,40 @@ GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
 
-// Marcador (por ahora se queda en 0 - 0)
+// Cámara de transmisión: sigue al jugador desde arriba, como en la tele
+bool camTransmision = false;
+
+// Posiciones de las luces puntuales
+glm::vec3 pointLightPositions[] = {
+	glm::vec3(-15.0f, 10.0f, 0.0f),   // reflector del techo izquierdo
+	glm::vec3(15.0f, 10.0f, 0.0f),    // reflector del techo derecho
+	glm::vec3(-29.5f, 3.2f, 0.0f),    // luz de gol izquierda (detrás de la portería)
+	glm::vec3(29.5f, 3.2f, 0.0f)      // luz de gol derecha
+};
+bool reflectores = true;
+
+// Marcador y luces de gol
 int golesLocal = 0;
 int golesVisita = 0;
+float tiempoGolIzq = 0.0f;   // segundos que le quedan encendida a cada luz de gol
+float tiempoGolDer = 0.0f;
+
+// Variables para animar al jugador (igual que la caminata del perro)
+bool animJugador = false;
+float piernaJug = 0.0f;                        // ángulo de las piernas
+float brazoJug = 0.0f;                         // ángulo de los brazos
+bool paso = false;                             // sentido del movimiento de piernas
+glm::vec3 posJugador(-20.0f, 0.0f, -4.0f);     // posición del jugador
+float rotJugador = 90.0f;                      // 90 = mira hacia +x
+int estadoJug = 0;                             // 0 avanza, 1 gira, 2 regresa, 3 gira
+
+// Tipos de persona
+const int JUGADOR = 0;
+const int PORTERO = 1;
+const int ARBITRO = 2;
+
+// Texturas que también usan las personas
+GLuint texPiel, texNegro, texMadera, texMetal, texBlancoTela;
 
 // Tiempo entre cuadros
 GLfloat deltaTime = 0.0f;
@@ -99,6 +139,7 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 
 	Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
+	Shader lampShader("Shader/lamp.vs", "Shader/lamp.frag");
 
 	// Cargamos los modelos .obj
 	Model aficionadoLocal((char *)"Models/aficionado_local.obj");
@@ -182,11 +223,14 @@ int main()
 	GLuint texAzul = CargarTextura("Textures/azul.png");
 	GLuint texGris = CargarTextura("Textures/gris.png");
 	GLuint texHule = CargarTextura("Textures/hule.png");
-	GLuint texConcreto = CargarTextura("Textures/concreto.png");
-	GLuint texNegro = CargarTextura("Textures/negro.png");
-	GLuint texMadera = CargarTextura("Textures/madera.png");
-	GLuint texMetal = CargarTextura("Textures/metal.png");
-	GLuint texBlancoTela = CargarTextura("Textures/blanco_tela.png");
+	GLuint texGradaRoja = CargarTextura("Textures/grada_roja.png");
+	GLuint texGradaAzul = CargarTextura("Textures/grada_azul.png");
+	GLuint texRayas = CargarTextura("Textures/rayas.png");
+	texPiel = CargarTextura("Textures/piel.png");
+	texNegro = CargarTextura("Textures/negro.png");
+	texMadera = CargarTextura("Textures/madera.png");
+	texMetal = CargarTextura("Textures/metal.png");
+	texBlancoTela = CargarTextura("Textures/blanco_tela.png");
 	GLuint texNumeros[10];
 	for (int i = 0; i < 10; i++)
 	{
@@ -205,13 +249,24 @@ int main()
 
 		glfwPollEvents();
 		DoMovement();
+		Animation();
 
 		glClearColor(0.05f, 0.06f, 0.09f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// Vista de la cámara en primera persona
-		glm::mat4 view = camera.GetViewMatrix();
-		glm::vec3 posCamara = camera.GetPosition();
+		// Vista: usamos la cámara libre o la de transmisión, según la tecla C
+		glm::mat4 view;
+		glm::vec3 posCamara;
+		if (camTransmision)
+		{
+			posCamara = glm::vec3(posJugador.x * 0.7f, 9.0f, 21.0f);
+			view = glm::lookAt(posCamara, posJugador + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		}
+		else
+		{
+			posCamara = camera.GetPosition();
+			view = camera.GetViewMatrix();
+		}
 
 		lightingShader.Use();
 		glUniform1i(glGetUniformLocation(lightingShader.Program, "material.diffuse"), 0);
@@ -219,11 +274,61 @@ int main()
 		GLint viewPosLoc = glGetUniformLocation(lightingShader.Program, "viewPos");
 		glUniform3f(viewPosLoc, posCamara.x, posCamara.y, posCamara.z);
 
-		// Luz direccional, única luz de la arena
+		// Luz direccional: es la luz general de la arena, la dejamos tenue
 		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.direction"), -0.2f, -1.0f, -0.3f);
-		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.ambient"), 0.45f, 0.45f, 0.47f);
-		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.diffuse"), 0.6f, 0.6f, 0.6f);
-		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.specular"), 0.3f, 0.3f, 0.3f);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.ambient"), 0.15f, 0.15f, 0.17f);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.diffuse"), 0.2f, 0.2f, 0.22f);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "dirLight.specular"), 0.1f, 0.1f, 0.1f);
+
+		// Luces puntuales 0 y 1: los reflectores del techo (se apagan con la L)
+		glm::vec3 luzReflector = reflectores ? glm::vec3(0.6f, 0.6f, 0.58f) : glm::vec3(0.0f);
+		for (int i = 0; i < 2; i++)
+		{
+			std::string n = "pointLights[" + std::to_string(i) + "].";
+			glUniform3f(glGetUniformLocation(lightingShader.Program, (n + "position").c_str()), pointLightPositions[i].x, pointLightPositions[i].y, pointLightPositions[i].z);
+			glUniform3f(glGetUniformLocation(lightingShader.Program, (n + "ambient").c_str()), luzReflector.x * 0.3f, luzReflector.y * 0.3f, luzReflector.z * 0.3f);
+			glUniform3f(glGetUniformLocation(lightingShader.Program, (n + "diffuse").c_str()), luzReflector.x, luzReflector.y, luzReflector.z);
+			glUniform3f(glGetUniformLocation(lightingShader.Program, (n + "specular").c_str()), luzReflector.x * 0.5f, luzReflector.y * 0.5f, luzReflector.z * 0.5f);
+			glUniform1f(glGetUniformLocation(lightingShader.Program, (n + "constant").c_str()), 1.0f);
+			glUniform1f(glGetUniformLocation(lightingShader.Program, (n + "linear").c_str()), 0.014f);
+			glUniform1f(glGetUniformLocation(lightingShader.Program, (n + "quadratic").c_str()), 0.0007f);
+		}
+
+		// Luces puntuales 2 y 3: las luces rojas de gol. Se prenden 3 segundos cuando hay gol
+		// en esa portería y el resto del tiempo están apagadas (color negro).
+		glm::vec3 rojoIzq = (tiempoGolIzq > 0.0f) ? glm::vec3(2.0f, 0.1f, 0.1f) : glm::vec3(0.0f);
+		glm::vec3 rojoDer = (tiempoGolDer > 0.0f) ? glm::vec3(2.0f, 0.1f, 0.1f) : glm::vec3(0.0f);
+		// Luz de gol izquierda
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[2].position"), pointLightPositions[2].x, pointLightPositions[2].y, pointLightPositions[2].z);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[2].ambient"), rojoIzq.x * 0.15f, 0.0f, 0.0f);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[2].diffuse"), rojoIzq.x, rojoIzq.y, rojoIzq.z);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[2].specular"), rojoIzq.x * 0.5f, 0.0f, 0.0f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "pointLights[2].constant"), 1.0f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "pointLights[2].linear"), 0.09f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "pointLights[2].quadratic"), 0.032f);
+		// Luz de gol derecha
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[3].position"), pointLightPositions[3].x, pointLightPositions[3].y, pointLightPositions[3].z);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[3].ambient"), rojoDer.x * 0.15f, 0.0f, 0.0f);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[3].diffuse"), rojoDer.x, rojoDer.y, rojoDer.z);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "pointLights[3].specular"), rojoDer.x * 0.5f, 0.0f, 0.0f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "pointLights[3].constant"), 1.0f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "pointLights[3].linear"), 0.09f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "pointLights[3].quadratic"), 0.032f);
+
+		// Reflector de cono: está en el techo y siempre apunta al jugador
+		glm::vec3 posCanon(0.0f, 16.0f, 10.0f);
+		glm::vec3 dirCanon = glm::normalize(posJugador + glm::vec3(0.0f, 1.0f, 0.0f) - posCanon);
+		glm::vec3 luzCanon = reflectores ? glm::vec3(1.0f, 1.0f, 0.9f) : glm::vec3(0.0f);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "spotLight.position"), posCanon.x, posCanon.y, posCanon.z);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "spotLight.direction"), dirCanon.x, dirCanon.y, dirCanon.z);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "spotLight.ambient"), 0.0f, 0.0f, 0.0f);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "spotLight.diffuse"), luzCanon.x, luzCanon.y, luzCanon.z);
+		glUniform3f(glGetUniformLocation(lightingShader.Program, "spotLight.specular"), luzCanon.x, luzCanon.y, luzCanon.z);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "spotLight.constant"), 1.0f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "spotLight.linear"), 0.014f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "spotLight.quadratic"), 0.0007f);
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "spotLight.cutOff"), glm::cos(glm::radians(4.0f)));
+		glUniform1f(glGetUniformLocation(lightingShader.Program, "spotLight.outerCutOff"), glm::cos(glm::radians(6.0f)));
 
 		// Brillo del material y transparencia para red y cristal
 		glUniform1f(glGetUniformLocation(lightingShader.Program, "material.shininess"), 32.0f);
@@ -281,7 +386,24 @@ int main()
 			DibujarCubo(lightingShader, glm::vec3(gx + atras / 2, 1.22f, 0.0f), glm::vec3(1.0f, 0.02f, 1.83f), texRed);
 			DibujarCubo(lightingShader, glm::vec3(gx + atras / 2, 0.61f, -0.915f), glm::vec3(1.0f, 1.22f, 0.02f), texRed);
 			DibujarCubo(lightingShader, glm::vec3(gx + atras / 2, 0.61f, 0.915f), glm::vec3(1.0f, 1.22f, 0.02f), texRed);
+			// Base de la luz de gol, sobre el cristal detrás de la portería
+			DibujarCubo(lightingShader, glm::vec3(29.5f * lado, 2.95f, 0.0f), glm::vec3(0.3f, 0.2f, 0.3f), texNegro);
 		}
+
+		// Personas en la pista (modelado jerárquico)
+		// Jugador animado del equipo local (tecla P)
+		DibujarPersona(lightingShader, posJugador, rotJugador, piernaJug, brazoJug, texRojo, texNegro, JUGADOR);
+		// Otros jugadores quietos, en posición de juego (el azul de abajo)
+		DibujarPersona(lightingShader, glm::vec3(-8.0f, 0.0f, 6.0f), 90.0f, 5.0f, 0.0f, texRojo, texNegro, JUGADOR);
+		DibujarPersona(lightingShader, glm::vec3(12.0f, 0.0f, 5.0f), -110.0f, 10.0f, 0.0f, texAzul, texNegro, JUGADOR);
+		// Porteros dentro de su área, mirando al centro
+		DibujarPersona(lightingShader, glm::vec3(-26.3f, 0.0f, 0.0f), 90.0f, 0.0f, 0.0f, texRojo, texNegro, PORTERO);
+		DibujarPersona(lightingShader, glm::vec3(26.3f, 0.0f, 0.0f), -90.0f, 0.0f, 0.0f, texAzul, texNegro, PORTERO);
+		// Defensor azul: marca al jugador rojo que patina (tecla P). Usa la misma posición del rojo,
+		// recorrida 1.6 m hacia las bancas, y los mismos giros y ángulos de piernas y brazos.
+		DibujarPersona(lightingShader, posJugador + glm::vec3(0.0f, 0.0f, -1.6f), rotJugador, piernaJug, brazoJug, texAzul, texNegro, JUGADOR);
+		// Árbitro: sigue la jugada por la orilla del frente (va a la mitad de la x del jugador rojo)
+		DibujarPersona(lightingShader, glm::vec3(posJugador.x * 0.5f, 0.0f, 8.0f), 180.0f, piernaJug, 0.0f, texRayas, texNegro, ARBITRO);
 
 		// Zona 2: bancas de los equipos, cajas de castigo y mesa de oficiales
 
@@ -316,14 +438,17 @@ int main()
 
 		// Zona 3: gradas con público y marcador
 
-		// Gradas de concreto: 5 escalones en cada lado; cada escalón es un cubo más alto que el anterior
+		// Gradas: 5 escalones en cada lado; cada escalón es un cubo más alto que el anterior.
+		// Se pintan del color de la afición que se sienta ahí: rojo el local (izquierda) y azul el visitante (derecha).
 		for (int fila = 0; fila < 5; fila++)
 		{
 			float alto = 0.5f * (fila + 1);
-			DibujarCubo(lightingShader, glm::vec3(0.0f, alto / 2, 16.5f + fila), glm::vec3(64.0f, alto, 1.0f), texConcreto);    // frente
-			DibujarCubo(lightingShader, glm::vec3(0.0f, alto / 2, -16.5f - fila), glm::vec3(64.0f, alto, 1.0f), texConcreto);   // atrás
-			DibujarCubo(lightingShader, glm::vec3(34.5f + fila, alto / 2, 0.0f), glm::vec3(1.0f, alto, 34.0f), texConcreto);    // fondo derecho
-			DibujarCubo(lightingShader, glm::vec3(-34.5f - fila, alto / 2, 0.0f), glm::vec3(1.0f, alto, 34.0f), texConcreto);   // fondo izquierdo
+			DibujarCubo(lightingShader, glm::vec3(-17.0f, alto / 2, 16.5f + fila), glm::vec3(34.0f, alto, 1.0f), texGradaRoja); // frente, izquierda
+			DibujarCubo(lightingShader, glm::vec3(17.0f, alto / 2, 16.5f + fila), glm::vec3(34.0f, alto, 1.0f), texGradaAzul);  // frente, derecha
+			DibujarCubo(lightingShader, glm::vec3(-17.0f, alto / 2, -16.5f - fila), glm::vec3(34.0f, alto, 1.0f), texGradaRoja); // atrás, izquierda
+			DibujarCubo(lightingShader, glm::vec3(17.0f, alto / 2, -16.5f - fila), glm::vec3(34.0f, alto, 1.0f), texGradaAzul);  // atrás, derecha
+			DibujarCubo(lightingShader, glm::vec3(34.5f + fila, alto / 2, 0.0f), glm::vec3(1.0f, alto, 42.0f), texGradaAzul);    // fondo derecho
+			DibujarCubo(lightingShader, glm::vec3(-34.5f - fila, alto / 2, 0.0f), glm::vec3(1.0f, alto, 42.0f), texGradaRoja);   // fondo izquierdo
 		}
 
 		// Marcador central colgante
@@ -342,9 +467,11 @@ int main()
 		glm::mat4 model(1);
 		GLint modelLoc = glGetUniformLocation(lightingShader.Program, "model");
 
-		// Disco en el punto central de saque
+		// Disco: va delante del palo del jugador animado, así que también hereda su movimiento
 		model = glm::mat4(1);
-		model = glm::translate(model, glm::vec3(0.0f, 0.012f, 0.0f));
+		model = glm::translate(model, posJugador);
+		model = glm::rotate(model, glm::radians(rotJugador), glm::vec3(0.0f, 1.0f, 0.0f));
+		model = glm::translate(model, glm::vec3(0.13f, 0.012f, 1.75f));
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		disco.Draw(lightingShader);
 
@@ -418,6 +545,23 @@ int main()
 		DibujarCubo(lightingShader, glm::vec3(2.45f, 1.1f, 14.35f), glm::vec3(0.03f, 2.2f, 2.5f), texCristal);
 		glDisable(GL_BLEND);
 
+		// Cubos blancos que marcan dónde están las luces
+		lampShader.Use();
+		glUniformMatrix4fv(glGetUniformLocation(lampShader.Program, "view"), 1, GL_FALSE, glm::value_ptr(view));
+		glUniformMatrix4fv(glGetUniformLocation(lampShader.Program, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glBindVertexArray(VAO);
+		for (int i = 0; i < 4; i++)
+		{
+			// Los reflectores se ven si están encendidos; las luces de gol, solo mientras están prendidas
+			if (i < 2 && !reflectores) continue;
+			if (i == 2 && tiempoGolIzq <= 0.0f) continue;
+			if (i == 3 && tiempoGolDer <= 0.0f) continue;
+			model = glm::mat4(1);
+			model = glm::translate(model, pointLightPositions[i]);
+			model = glm::scale(model, (i < 2) ? glm::vec3(1.0f) : glm::vec3(0.25f));
+			glUniformMatrix4fv(glGetUniformLocation(lampShader.Program, "model"), 1, GL_FALSE, glm::value_ptr(model));
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
 		glBindVertexArray(0);
 
 		glfwSwapBuffers(window);
@@ -439,6 +583,110 @@ void DibujarCubo(Shader &shader, glm::vec3 posicion, glm::vec3 escala, GLuint te
 	glUniformMatrix4fv(glGetUniformLocation(shader.Program, "model"), 1, GL_FALSE, glm::value_ptr(model));
 	glBindTexture(GL_TEXTURE_2D, textura);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
+}
+
+// Dibuja una parte de una persona: recibe la matriz de su articulación y solo le aplica la escala
+void DibujarParte(Shader &shader, glm::mat4 model, glm::vec3 escala, GLuint textura)
+{
+	model = glm::scale(model, escala);
+	glUniformMatrix4fv(glGetUniformLocation(shader.Program, "model"), 1, GL_FALSE, glm::value_ptr(model));
+	glBindTexture(GL_TEXTURE_2D, textura);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+}
+
+// Persona hecha con modelado jerárquico (igual que el brazo y el perro de las prácticas).
+// tipo: JUGADOR, PORTERO o ARBITRO.
+//   cuerpo -> torso -> cabeza -> casco
+//          -> torso -> brazo -> antebrazo -> mano -> palo
+//          -> cadera -> muslo -> pierna -> patín
+// Cada pieza parte de la matriz guardada de su "padre" (modelTemp), le suma su traslación
+// hasta la articulación y luego su propia rotación.
+void DibujarPersona(Shader &shader, glm::vec3 posicion, float rotacion, float angPierna, float angBrazo,
+	GLuint texCamiseta, GLuint texPantalon, int tipo)
+{
+	glm::mat4 model(1);
+	glm::mat4 modelTemp(1);    // cuerpo (posición y giro de la persona)
+	glm::mat4 modelTemp2(1);   // torso
+	glm::mat4 modelTemp3(1);   // articulación actual (brazo o pierna)
+
+	// Medidas: el portero es más ancho por su equipo de protección
+	float anchoPierna = (tipo == PORTERO) ? 0.3f : 0.18f;
+	float separacion = (tipo == PORTERO) ? 0.2f : 0.12f;
+	GLuint texPierna = (tipo == PORTERO) ? texBlancoTela : texPantalon;
+
+	// Cuerpo
+	modelTemp = model = glm::translate(glm::mat4(1), posicion);
+	modelTemp = model = glm::rotate(model, glm::radians(rotacion), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	// Torso: un poco inclinado hacia adelante, como patinador
+	model = glm::translate(modelTemp, glm::vec3(0.0f, 0.98f, 0.0f));
+	model = glm::rotate(model, glm::radians(20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	modelTemp2 = model = glm::translate(model, glm::vec3(0.0f, 0.3f, 0.0f));
+	DibujarParte(shader, model, (tipo == PORTERO) ? glm::vec3(0.6f, 0.6f, 0.4f) : glm::vec3(0.46f, 0.6f, 0.28f), texCamiseta);
+
+	// Cabeza y casco
+	model = glm::translate(modelTemp2, glm::vec3(0.0f, 0.42f, 0.0f));
+	DibujarParte(shader, model, glm::vec3(0.22f, 0.24f, 0.22f), texPiel);
+	model = glm::translate(model, glm::vec3(0.0f, 0.1f, -0.01f));
+	DibujarParte(shader, model, glm::vec3(0.26f, 0.12f, 0.27f), (tipo == PORTERO) ? texBlancoTela : texNegro);
+
+	// Brazos (derecho = lado 1, izquierdo = lado -1). Los brazos se mueven al revés de las piernas.
+	for (int lado = -1; lado <= 1; lado += 2)
+	{
+		// Hombro
+		model = glm::translate(modelTemp2, glm::vec3(0.31f * lado, 0.24f, 0.0f));
+		model = glm::rotate(model, glm::radians(-45.0f + angBrazo * lado), glm::vec3(1.0f, 0.0f, 0.0f));
+		modelTemp3 = model;
+		model = glm::translate(model, glm::vec3(0.0f, -0.17f, 0.0f));
+		DibujarParte(shader, model, glm::vec3(0.13f, 0.34f, 0.13f), texCamiseta);
+		// Codo y antebrazo
+		model = glm::translate(modelTemp3, glm::vec3(0.0f, -0.34f, 0.0f));
+		model = glm::rotate(model, glm::radians(-35.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		modelTemp3 = model;
+		model = glm::translate(model, glm::vec3(0.0f, -0.15f, 0.0f));
+		DibujarParte(shader, model, glm::vec3(0.11f, 0.3f, 0.11f), texCamiseta);
+		// Mano (guante)
+		model = glm::translate(modelTemp3, glm::vec3(0.0f, -0.33f, 0.0f));
+		modelTemp3 = model;
+		DibujarParte(shader, model, glm::vec3(0.12f, 0.12f, 0.12f), texNegro);
+
+		// Palo: lo sostiene la mano derecha (el árbitro no lleva palo)
+		if (lado == 1 && tipo != ARBITRO)
+		{
+			model = glm::rotate(modelTemp3, glm::radians(13.0f - angBrazo), glm::vec3(1.0f, 0.0f, 0.0f));  // compensa el brazo para que la pala siga en el hielo
+			model = glm::rotate(model, glm::radians(-10.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+			modelTemp3 = model = glm::translate(model, glm::vec3(0.0f, -0.7f, 0.0f));
+			DibujarParte(shader, model, glm::vec3(0.035f, 1.4f, 0.03f), texMadera);
+			// Pala: se endereza para quedar acostada sobre el hielo
+			model = glm::translate(modelTemp3, glm::vec3(0.0f, -0.7f, 0.0f));
+			model = glm::rotate(model, glm::radians(47.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+			model = glm::translate(model, glm::vec3(0.0f, 0.0f, 0.12f));
+			DibujarParte(shader, model, glm::vec3(0.03f, 0.07f, 0.3f), texNegro);
+		}
+	}
+
+	// Piernas: se mueven en sentidos opuestos, como las patas del perro
+	for (int lado = -1; lado <= 1; lado += 2)
+	{
+		// Cadera y muslo
+		model = glm::translate(modelTemp, glm::vec3(separacion * lado, 0.98f, 0.0f));
+		model = glm::rotate(model, glm::radians(angPierna * lado - 10.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		modelTemp3 = model;
+		model = glm::translate(model, glm::vec3(0.0f, -0.22f, 0.0f));
+		DibujarParte(shader, model, glm::vec3(anchoPierna, 0.44f, anchoPierna), texPierna);
+		// Rodilla y pierna
+		model = glm::translate(modelTemp3, glm::vec3(0.0f, -0.44f, 0.0f));
+		model = glm::rotate(model, glm::radians(20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		modelTemp3 = model;
+		model = glm::translate(model, glm::vec3(0.0f, -0.2f, 0.0f));
+		DibujarParte(shader, model, glm::vec3(anchoPierna * 0.85f, 0.4f, anchoPierna * 0.85f), (tipo == PORTERO) ? texBlancoTela : texCamiseta);
+		// Patín (bota y cuchilla)
+		model = glm::translate(modelTemp3, glm::vec3(0.0f, -0.44f, 0.06f));
+		model = glm::rotate(model, glm::radians(-angPierna * lado), glm::vec3(1.0f, 0.0f, 0.0f));
+		DibujarParte(shader, model, glm::vec3(0.11f, 0.1f, 0.3f), texNegro);
+		model = glm::translate(model, glm::vec3(0.0f, -0.07f, 0.0f));
+		DibujarParte(shader, model, glm::vec3(0.02f, 0.04f, 0.3f), texMetal);
+	}
 }
 
 // Carga una imagen con stb_image y la convierte en textura
@@ -468,6 +716,71 @@ GLuint CargarTextura(const char *ruta)
 	return texture;
 }
 
+// Animaciones: se llama en cada cuadro, igual que en la práctica de animación
+void Animation()
+{
+	// Jugador: máquina de estados como la caminata del perro
+	if (animJugador)
+	{
+		// Piernas y brazos oscilan entre -25 y 25 grados
+		if (!paso)
+		{
+			piernaJug += 60.0f * deltaTime;
+			if (piernaJug > 25.0f)
+				paso = !paso;
+		}
+		else
+		{
+			piernaJug -= 60.0f * deltaTime;
+			if (piernaJug < -25.0f)
+				paso = !paso;
+		}
+		brazoJug = -piernaJug * 0.6f;
+
+		// Recorrido: avanza, da la vuelta, regresa y vuelve a dar la vuelta
+		if (estadoJug == 0)        // avanza hacia +x
+		{
+			posJugador.x += 6.0f * deltaTime;
+			if (posJugador.x > 20.0f)
+				estadoJug = 1;
+		}
+		else if (estadoJug == 1)   // gira 180 grados
+		{
+			rotJugador += 180.0f * deltaTime;
+			if (rotJugador >= 270.0f)
+			{
+				rotJugador = 270.0f;
+				estadoJug = 2;
+			}
+		}
+		else if (estadoJug == 2)   // regresa hacia -x
+		{
+			posJugador.x -= 6.0f * deltaTime;
+			if (posJugador.x < -20.0f)
+				estadoJug = 3;
+		}
+		else if (estadoJug == 3)   // gira 180 grados
+		{
+			rotJugador -= 180.0f * deltaTime;
+			if (rotJugador <= 90.0f)
+			{
+				rotJugador = 90.0f;
+				estadoJug = 0;
+			}
+		}
+	}
+
+	// Luces de gol: se apagan solas después de 3 segundos
+	if (tiempoGolIzq > 0.0f)
+		tiempoGolIzq -= deltaTime;
+	else
+		tiempoGolIzq = 0.0f;
+	if (tiempoGolDer > 0.0f)
+		tiempoGolDer -= deltaTime;
+	else
+		tiempoGolDer = 0.0f;
+}
+
 // Movimiento de la cámara con el teclado
 void DoMovement()
 {
@@ -493,6 +806,36 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode
 			keys[key] = true;
 		else if (action == GLFW_RELEASE)
 			keys[key] = false;
+	}
+
+	// Encender y apagar los reflectores
+	if (key == GLFW_KEY_L && action == GLFW_PRESS)
+		reflectores = !reflectores;
+
+	// Cambiar de cámara
+	if (key == GLFW_KEY_C && action == GLFW_PRESS)
+		camTransmision = !camTransmision;
+
+	// El jugador empieza o deja de patinar
+	if (key == GLFW_KEY_P && action == GLFW_PRESS)
+		animJugador = !animJugador;
+
+	// Goles: suben el marcador (del 0 al 9) y encienden la luz de gol de esa portería.
+	// El local ataca la portería derecha y el visitante la izquierda.
+	if (key == GLFW_KEY_1 && action == GLFW_PRESS && golesLocal < 9)
+	{
+		golesLocal++;
+		tiempoGolDer = 3.0f;
+	}
+	if (key == GLFW_KEY_2 && action == GLFW_PRESS && golesVisita < 9)
+	{
+		golesVisita++;
+		tiempoGolIzq = 3.0f;
+	}
+	if (key == GLFW_KEY_0 && action == GLFW_PRESS)
+	{
+		golesLocal = 0;
+		golesVisita = 0;
 	}
 }
 

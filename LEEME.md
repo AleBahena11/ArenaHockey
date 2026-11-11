@@ -1,12 +1,14 @@
 # Arena de Hockey sobre Hielo
 
 Proyecto Final de Computación Gráfica e Interacción Humano-Computadora (FI UNAM).
-Iteración 2: pista de juego.
+Iteración 3: bancas, gradas, público, marcador y carga de modelos.
 
 ## Qué tiene esta versión
 
-- **Zona 1, pista de juego:** hielo de 61 × 26 m con la línea roja, las líneas azules, las líneas de gol, los cinco círculos de saque, los puntos de cara a cara y las áreas de portero (todo en la textura del hielo).
-- Vallas con publicidad, cristal protector semitransparente (`GL_BLEND`) y dos porterías con red (la red usa `discard` en los huecos).
+- **Zona 1, pista de juego:** hielo con sus marcas, vallas, cristal y porterías.
+- **Zona 2, bancas:** bancas de madera de los dos equipos con toallas, botellas y palos; cajas de castigo y mesa de oficiales.
+- **Zona 3, espectadores:** gradas de concreto de 5 escalones en los cuatro lados, público y marcador central colgante (por ahora en 0 - 0).
+- **Carga de modelos:** público (sentado en su asiento), palos, botellas y disco, hechos en Blender y exportados a `.obj`; se cargan con Assimp y la clase `Model`, y sus texturas se leen con SOIL2.
 
 ## Controles
 
@@ -19,9 +21,10 @@ Iteración 2: pista de juego.
 ## Archivos
 
 - `Main.cpp`: el programa.
-- `Shader.h`, `Camera.h`, `stb_image.h`: clases de las prácticas.
+- `Shader.h`, `Camera.h`, `Mesh.h`, `Model.h`, `stb_image.h`: clases de las prácticas.
 - `Shader/`: `lighting.vs` y `lighting.frag`.
-- `Textures/`: hielo, vallas, red, cristal y colores.
+- `Textures/`: hielo, vallas, red, cristal, materiales, marcador y números del 0 al 9.
+- `Models/`: aficionados, palo, botella y disco (`.obj`), hechos en Blender 4.2. En `Models/blender/` están los `.blend` de cada uno y el script con el que se armaron.
 - `docs/`: acta y plano.
 
 ## Cómo abrirlo en Visual Studio 2022
@@ -42,6 +45,5 @@ Iteración 2: pista de juego.
 
 ## Lo que sigue
 
-- Iteración 3: bancas, gradas, público, marcador y carga de modelos.
 - Iteración 4: jugadores, portero y árbitro, cámaras e iluminación.
 - Iteración 5: animación por cuadros clave, interacción, pruebas, documentación y video.

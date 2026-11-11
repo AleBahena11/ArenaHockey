@@ -76,7 +76,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;$(ProjectDir)External Libraries;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -93,7 +93,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;$(ProjectDir)External Libraries;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -108,7 +108,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;$(ProjectDir)External Libraries;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -125,7 +125,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)External Libraries\GLEW\include;$(ProjectDir)External Libraries\GLFW\include;$(ProjectDir)External Libraries\assimp\include;$(ProjectDir)External Libraries\GLM;$(ProjectDir)External Libraries;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

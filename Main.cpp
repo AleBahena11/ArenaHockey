@@ -2,11 +2,12 @@
  * Proyecto Final: Arena de Hockey sobre Hielo
  * Laboratorio de Computación Gráfica e Interacción Humano-Computadora, FI UNAM
  *
- * Iteración 2: la pista de juego.
- * Contiene el hielo de 61 x 26 m con sus marcas (líneas, círculos de saque y áreas de portero),
- * las vallas con publicidad, el cristal protector y las dos porterías con su red.
+ * Iteración 3: bancas, gradas, público, marcador y carga de modelos.
+ * Contiene la zona de bancas (bancas de los equipos, cajas de castigo y mesa de oficiales),
+ * las gradas en los cuatro lados, el marcador colgante y los modelos cargados con Assimp
+ * (público, palos, botellas y disco).
  *
- * Se ve la pista completa, todavía sin bancas, gradas ni jugadores.
+ * Se ve la arena completa con su público, todavía sin jugadores. El marcador está en 0 - 0.
  *
  * Qué se puede hacer:
  *   W A S D moverse        Mouse mirar        ESC salir
@@ -30,8 +31,10 @@
 // Clases de las prácticas
 #include "Shader.h"
 #include "Camera.h"
+#include "Model.h"
 
 // stb_image carga las texturas del escenario
+#include "SOIL2/SOIL2.h"
 #include "stb_image.h"
 
 // Prototipos de las funciones
@@ -51,6 +54,10 @@ GLfloat lastX = WIDTH / 2.0;
 GLfloat lastY = HEIGHT / 2.0;
 bool keys[1024];
 bool firstMouse = true;
+
+// Marcador (por ahora se queda en 0 - 0)
+int golesLocal = 0;
+int golesVisita = 0;
 
 // Tiempo entre cuadros
 GLfloat deltaTime = 0.0f;
@@ -92,6 +99,13 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 
 	Shader lightingShader("Shader/lighting.vs", "Shader/lighting.frag");
+
+	// Cargamos los modelos .obj
+	Model aficionadoLocal((char *)"Models/aficionado_local.obj");
+	Model aficionadoVisita((char *)"Models/aficionado_visita.obj");
+	Model palo((char *)"Models/palo.obj");
+	Model botella((char *)"Models/botella.obj");
+	Model disco((char *)"Models/disco.obj");
 
 	// Vértices del cubo
 	GLfloat vertices[] =
@@ -163,9 +177,23 @@ int main()
 	GLuint texValla2 = CargarTextura("Textures/valla2.png");
 	GLuint texRed = CargarTextura("Textures/red.png");
 	GLuint texCristal = CargarTextura("Textures/cristal.png");
+	GLuint texMarcador = CargarTextura("Textures/marcador.png");
 	GLuint texRojo = CargarTextura("Textures/rojo.png");
+	GLuint texAzul = CargarTextura("Textures/azul.png");
 	GLuint texGris = CargarTextura("Textures/gris.png");
+	GLuint texHule = CargarTextura("Textures/hule.png");
+	GLuint texConcreto = CargarTextura("Textures/concreto.png");
+	GLuint texNegro = CargarTextura("Textures/negro.png");
+	GLuint texMadera = CargarTextura("Textures/madera.png");
+	GLuint texMetal = CargarTextura("Textures/metal.png");
 	GLuint texBlancoTela = CargarTextura("Textures/blanco_tela.png");
+	GLuint texNumeros[10];
+	for (int i = 0; i < 10; i++)
+	{
+		std::string ruta = "Textures/numeros/" + std::to_string(i) + ".png";
+		texNumeros[i] = CargarTextura(ruta.c_str());
+	}
+
 	glm::mat4 projection = glm::perspective(camera.GetZoom(), (GLfloat)SCREEN_WIDTH / (GLfloat)SCREEN_HEIGHT, 0.1f, 200.0f);
 
 	// Ciclo principal
@@ -255,6 +283,128 @@ int main()
 			DibujarCubo(lightingShader, glm::vec3(gx + atras / 2, 0.61f, 0.915f), glm::vec3(1.0f, 1.22f, 0.02f), texRed);
 		}
 
+		// Zona 2: bancas de los equipos, cajas de castigo y mesa de oficiales
+
+		// Bancas de los equipos (detrás de la valla de atrás, z negativo)
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 0.03f, -14.35f), glm::vec3(24.0f, 0.06f, 2.5f), texHule);  // piso de hule
+		for (int equipo = -1; equipo <= 1; equipo += 2)
+		{
+			float xc = 7.0f * equipo;
+			GLuint tex = (equipo < 0) ? texRojo : texAzul;
+			DibujarCubo(lightingShader, glm::vec3(xc, 0.7f, -15.6f), glm::vec3(9.4f, 1.4f, 0.1f), tex);          // muro de atrás
+			DibujarCubo(lightingShader, glm::vec3(xc - 4.7f, 0.6f, -14.35f), glm::vec3(0.1f, 1.2f, 2.5f), tex);   // muros de los lados
+			DibujarCubo(lightingShader, glm::vec3(xc + 4.7f, 0.6f, -14.35f), glm::vec3(0.1f, 1.2f, 2.5f), tex);
+			DibujarCubo(lightingShader, glm::vec3(xc, 0.42f, -15.05f), glm::vec3(9.0f, 0.08f, 0.45f), texMadera); // asiento de madera
+			DibujarCubo(lightingShader, glm::vec3(xc, 0.2f, -15.05f), glm::vec3(8.6f, 0.4f, 0.3f), texHule);      // base
+			// Toallas
+			for (int i = -3; i <= 3; i += 3)
+				DibujarCubo(lightingShader, glm::vec3(xc + i + 0.6f, 0.47f, -15.05f), glm::vec3(0.4f, 0.02f, 0.3f), texBlancoTela);
+		}
+
+		// Cajas de castigo y mesa de oficiales (al frente, z positivo)
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 0.03f, 14.35f), glm::vec3(12.0f, 0.06f, 2.5f), texHule);         // piso
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 0.7f, 15.6f), glm::vec3(12.0f, 1.4f, 0.1f), texGris);            // muro de atrás
+		DibujarCubo(lightingShader, glm::vec3(-4.2f, 0.42f, 15.05f), glm::vec3(3.2f, 0.08f, 0.45f), texRojo);        // banca castigo local
+		DibujarCubo(lightingShader, glm::vec3(4.2f, 0.42f, 15.05f), glm::vec3(3.2f, 0.08f, 0.45f), texAzul);         // banca castigo visitante
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 0.75f, 13.8f), glm::vec3(3.6f, 0.06f, 0.8f), texBlancoTela);     // mesa de oficiales
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 0.37f, 13.45f), glm::vec3(3.6f, 0.74f, 0.05f), texNegro);        // frente de la mesa
+		for (int i = -1; i <= 1; i += 2)
+		{
+			DibujarCubo(lightingShader, glm::vec3(0.8f * i, 0.45f, 14.6f), glm::vec3(0.45f, 0.08f, 0.45f), texNegro);  // silla
+			DibujarCubo(lightingShader, glm::vec3(0.8f * i, 0.75f, 14.82f), glm::vec3(0.45f, 0.55f, 0.05f), texNegro); // respaldo
+		}
+
+		// Zona 3: gradas con público y marcador
+
+		// Gradas de concreto: 5 escalones en cada lado; cada escalón es un cubo más alto que el anterior
+		for (int fila = 0; fila < 5; fila++)
+		{
+			float alto = 0.5f * (fila + 1);
+			DibujarCubo(lightingShader, glm::vec3(0.0f, alto / 2, 16.5f + fila), glm::vec3(64.0f, alto, 1.0f), texConcreto);    // frente
+			DibujarCubo(lightingShader, glm::vec3(0.0f, alto / 2, -16.5f - fila), glm::vec3(64.0f, alto, 1.0f), texConcreto);   // atrás
+			DibujarCubo(lightingShader, glm::vec3(34.5f + fila, alto / 2, 0.0f), glm::vec3(1.0f, alto, 34.0f), texConcreto);    // fondo derecho
+			DibujarCubo(lightingShader, glm::vec3(-34.5f - fila, alto / 2, 0.0f), glm::vec3(1.0f, alto, 34.0f), texConcreto);   // fondo izquierdo
+		}
+
+		// Marcador central colgante
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 13.0f, 0.0f), glm::vec3(5.0f, 2.6f, 2.0f), texNegro);     // cuerpo
+		DibujarCubo(lightingShader, glm::vec3(-2.0f, 19.0f, 0.0f), glm::vec3(0.05f, 9.4f, 0.05f), texMetal);  // cables
+		DibujarCubo(lightingShader, glm::vec3(2.0f, 19.0f, 0.0f), glm::vec3(0.05f, 9.4f, 0.05f), texMetal);
+		// Pantallas (una de cada lado) y números de los goles (cada número es una textura)
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 13.0f, 1.01f), glm::vec3(4.6f, 2.4f, 0.02f), texMarcador, 0.0f);
+		DibujarCubo(lightingShader, glm::vec3(0.0f, 13.0f, -1.01f), glm::vec3(4.6f, 2.4f, 0.02f), texMarcador, 180.0f);
+		DibujarCubo(lightingShader, glm::vec3(-1.4f, 12.8f, 1.03f), glm::vec3(0.8f, 1.1f, 0.01f), texNumeros[golesLocal], 0.0f);
+		DibujarCubo(lightingShader, glm::vec3(1.4f, 12.8f, 1.03f), glm::vec3(0.8f, 1.1f, 0.01f), texNumeros[golesVisita], 0.0f);
+		DibujarCubo(lightingShader, glm::vec3(1.4f, 12.8f, -1.03f), glm::vec3(0.8f, 1.1f, 0.01f), texNumeros[golesLocal], 180.0f);
+		DibujarCubo(lightingShader, glm::vec3(-1.4f, 12.8f, -1.03f), glm::vec3(0.8f, 1.1f, 0.01f), texNumeros[golesVisita], 180.0f);
+
+		// Modelos cargados con Assimp
+		glm::mat4 model(1);
+		GLint modelLoc = glGetUniformLocation(lightingShader.Program, "model");
+
+		// Disco en el punto central de saque
+		model = glm::mat4(1);
+		model = glm::translate(model, glm::vec3(0.0f, 0.012f, 0.0f));
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+		disco.Draw(lightingShader);
+
+		// Botellas y palos en las bancas
+		for (int equipo = -1; equipo <= 1; equipo += 2)
+		{
+			float xc = 7.0f * equipo;
+			for (int i = -4; i <= 4; i += 2)
+			{
+				model = glm::mat4(1);
+				model = glm::translate(model, glm::vec3(xc + i, 0.46f, -14.95f));
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+				botella.Draw(lightingShader);
+			}
+			for (int i = 0; i < 4; i++)
+			{
+				model = glm::mat4(1);
+				model = glm::translate(model, glm::vec3(xc - 1.5f + i, 0.06f, -15.4f));
+				model = glm::rotate(model, glm::radians(-15.0f), glm::vec3(1.0f, 0.0f, 0.0f));  // recargado en el muro
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+				palo.Draw(lightingShader);
+			}
+		}
+
+		// Público en las filas 1, 3 y 5 de las gradas (afición local a la izquierda, visitante a la derecha)
+		for (int fila = 0; fila < 5; fila += 2)
+		{
+			float y = 0.5f * (fila + 1);
+			// Lados largos
+			for (float x = -27.5f; x <= 27.5f; x += 5.0f)
+			{
+				Model &aficionado = (x < 0) ? aficionadoLocal : aficionadoVisita;
+				model = glm::mat4(1);
+				model = glm::translate(model, glm::vec3(x, y, 16.5f + fila));
+				model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));  // mira hacia la pista
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+				aficionado.Draw(lightingShader);
+
+				model = glm::mat4(1);
+				model = glm::translate(model, glm::vec3(x, y, -16.5f - fila));
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+				aficionado.Draw(lightingShader);
+			}
+			// Fondos
+			for (float z = -12.5f; z <= 12.5f; z += 5.0f)
+			{
+				model = glm::mat4(1);
+				model = glm::translate(model, glm::vec3(34.5f + fila, y, z));
+				model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+				aficionadoVisita.Draw(lightingShader);
+
+				model = glm::mat4(1);
+				model = glm::translate(model, glm::vec3(-34.5f - fila, y, z));
+				model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+				glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+				aficionadoLocal.Draw(lightingShader);
+			}
+		}
+
 		// Cristal protector: va al final porque es transparente
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -263,6 +413,9 @@ int main()
 		DibujarCubo(lightingShader, glm::vec3(0.0f, 1.97f, 13.03f), glm::vec3(60.96f, 1.8f, 0.02f), texCristal);
 		DibujarCubo(lightingShader, glm::vec3(30.555f, 1.97f, 0.0f), glm::vec3(0.02f, 1.8f, 25.91f), texCristal);
 		DibujarCubo(lightingShader, glm::vec3(-30.555f, 1.97f, 0.0f), glm::vec3(0.02f, 1.8f, 25.91f), texCristal);
+		// Separadores de cristal de las cajas de castigo
+		DibujarCubo(lightingShader, glm::vec3(-2.45f, 1.1f, 14.35f), glm::vec3(0.03f, 2.2f, 2.5f), texCristal);
+		DibujarCubo(lightingShader, glm::vec3(2.45f, 1.1f, 14.35f), glm::vec3(0.03f, 2.2f, 2.5f), texCristal);
 		glDisable(GL_BLEND);
 
 		glBindVertexArray(0);

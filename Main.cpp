@@ -2,18 +2,19 @@
  * Proyecto Final: Arena de Hockey sobre Hielo
  * Laboratorio de Computación Gráfica e Interacción Humano-Computadora, FI UNAM
  *
- * Iteración 4, con los ajustes de la revisión.
- * Además de los jugadores, las cámaras y la iluminación, contiene: las mallas arriba del cristal,
- * jugadores sentados en las bancas, las porterías hechas en Blender, el recinto (paredes, techo y
- * vigas con las lámparas), una cuarta zona con el túnel a vestidores y la mascota (el perro de las
- * prácticas), más público, nuevos anuncios en las vallas y el número del marcador que crece al anotar.
+ * Iteración 5: animación por keyframes.
+ * Contiene la jugada completa hecha con keyframes, como en la práctica: con la tecla G el equipo local
+ * sale del centro, un defensor lo persigue, da el pase, su compañero tira y anota (sube el marcador,
+ * suena la bocina y se prende la luz de gol) y festeja. Después, la misma jugada la hace el equipo
+ * visitante hacia la otra portería.
  *
- * Se ve la arena completa y techada, con jugadores en la pista y en las bancas.
+ * Se ve la arena completa, con jugadores en la pista y en las bancas.
  *
  * Qué se puede hacer:
  *   W A S D moverse        Mouse mirar        ESC salir
- *   P el jugador empieza o deja de patinar con el disco
+ *   G reproducir la jugada (primero anota el local y luego el visitante); si se está reproduciendo, la detiene
  *   C cambiar entre la cámara libre y la cámara de transmisión
+ *   V ver desde los ojos del jugador que tira (otra vez V regresa)
  *   L prender y apagar los reflectores del techo
  *   1 / 2 gol del local / del visitante (sube el marcador, prende la luz de gol y suena la bocina)
  *   0 regresar el marcador a 0 - 0
@@ -73,6 +74,9 @@ bool firstMouse = true;
 // Cámara de transmisión: sigue al jugador desde arriba, como en la tele
 bool camTransmision = false;
 
+// Cámara desde los ojos del jugador que tira en la jugada de gol (tecla V)
+bool camJugador = false;
+
 // Posiciones de las luces puntuales
 glm::vec3 pointLightPositions[] = {
 	glm::vec3(-15.0f, 15.0f, 0.0f),   // reflector del techo izquierdo (colgado de la viga)
@@ -88,14 +92,52 @@ int golesVisita = 0;
 float tiempoGolIzq = 0.0f;   // segundos que le quedan encendida a cada luz de gol
 float tiempoGolDer = 0.0f;
 
-// Variables para animar al jugador (igual que la caminata del perro)
-bool animJugador = false;
+// Piernas y brazos de los que patinan: suben y bajan como la caminata del perro (máquina de estados)
 float piernaJug = 0.0f;                        // ángulo de las piernas
 float brazoJug = 0.0f;                         // ángulo de los brazos
 bool paso = false;                             // sentido del movimiento de piernas
-glm::vec3 posJugador(-20.0f, 0.0f, -4.0f);     // posición del jugador
-float rotJugador = 90.0f;                      // 90 = mira hacia +x
-int estadoJug = 0;                             // 0 avanza, 1 gira, 2 regresa, 3 gira
+
+// KeyFrames: la jugada completa (igual que en la práctica de keyframes).
+// Las poses son las del ataque del local hacia la portería derecha; para el ataque del visitante
+// se usan las mismas poses al revés (x y z con signo contrario y el giro + 180 grados).
+float pasPosX, pasPosZ;     // posición del jugador que da el pase
+float rotPas;               // hacia dónde mira el que da el pase
+float jugPosX, jugPosZ;     // posición del jugador que tira
+float rotJug;               // hacia dónde mira
+float brazo;                // ángulo de los brazos (levanta el palo y tira)
+float discoX, discoZ;       // posición del disco de la jugada
+float porteroZ;             // posición del portero que defiende (se mueve hacia el lado del tiro)
+int equipo = 0;             // equipo que ataca: 0 local (rojo), 1 visitante (azul)
+
+#define MAX_FRAMES 9
+int i_max_steps = 45;
+int i_curr_steps = 0;
+typedef struct _frame {
+	float pasPosX;
+	float pasPosZ;
+	float rotPas;
+	float jugPosX;
+	float jugPosZ;
+	float rotJug;
+	float brazo;
+	float discoX;
+	float discoZ;
+	float porteroZ;
+	float pasXInc;
+	float pasZInc;
+	float rotPasInc;
+	float incX;
+	float incZ;
+	float rotJugInc;
+	float brazoInc;
+	float discoXInc;
+	float discoZInc;
+	float porteroZInc;
+}FRAME;
+FRAME KeyFrame[MAX_FRAMES];
+int FrameIndex = 0;
+bool play = false;
+int playIndex = 0;
 
 // Tipos de persona
 const int JUGADOR = 0;
@@ -110,6 +152,113 @@ GLuint texPiel, texNegro, texMadera, texMetal, texBlancoTela;
 // Tiempo entre cuadros
 GLfloat deltaTime = 0.0f;
 GLfloat lastFrame = 0.0f;
+
+// Guarda la pose actual como un cuadro clave
+void saveFrame(void)
+{
+	std::cout << "frameindex " << FrameIndex << std::endl;
+	KeyFrame[FrameIndex].pasPosX = pasPosX;
+	KeyFrame[FrameIndex].pasPosZ = pasPosZ;
+	KeyFrame[FrameIndex].rotPas = rotPas;
+	KeyFrame[FrameIndex].jugPosX = jugPosX;
+	KeyFrame[FrameIndex].jugPosZ = jugPosZ;
+	KeyFrame[FrameIndex].rotJug = rotJug;
+	KeyFrame[FrameIndex].brazo = brazo;
+	KeyFrame[FrameIndex].discoX = discoX;
+	KeyFrame[FrameIndex].discoZ = discoZ;
+	KeyFrame[FrameIndex].porteroZ = porteroZ;
+	FrameIndex++;
+}
+
+// Regresa al jugador y al disco a la pose del primer cuadro
+void resetElements(void)
+{
+	pasPosX = KeyFrame[0].pasPosX;
+	pasPosZ = KeyFrame[0].pasPosZ;
+	rotPas = KeyFrame[0].rotPas;
+	jugPosX = KeyFrame[0].jugPosX;
+	jugPosZ = KeyFrame[0].jugPosZ;
+	rotJug = KeyFrame[0].rotJug;
+	brazo = KeyFrame[0].brazo;
+	discoX = KeyFrame[0].discoX;
+	discoZ = KeyFrame[0].discoZ;
+	porteroZ = KeyFrame[0].porteroZ;
+}
+
+// Calcula cuánto cambia cada variable en cada paso entre el cuadro actual y el siguiente
+void interpolation(void)
+{
+	KeyFrame[playIndex].pasXInc = (KeyFrame[playIndex + 1].pasPosX - KeyFrame[playIndex].pasPosX) / i_max_steps;
+	KeyFrame[playIndex].pasZInc = (KeyFrame[playIndex + 1].pasPosZ - KeyFrame[playIndex].pasPosZ) / i_max_steps;
+	KeyFrame[playIndex].rotPasInc = (KeyFrame[playIndex + 1].rotPas - KeyFrame[playIndex].rotPas) / i_max_steps;
+	KeyFrame[playIndex].incX = (KeyFrame[playIndex + 1].jugPosX - KeyFrame[playIndex].jugPosX) / i_max_steps;
+	KeyFrame[playIndex].incZ = (KeyFrame[playIndex + 1].jugPosZ - KeyFrame[playIndex].jugPosZ) / i_max_steps;
+	KeyFrame[playIndex].rotJugInc = (KeyFrame[playIndex + 1].rotJug - KeyFrame[playIndex].rotJug) / i_max_steps;
+	KeyFrame[playIndex].brazoInc = (KeyFrame[playIndex + 1].brazo - KeyFrame[playIndex].brazo) / i_max_steps;
+	KeyFrame[playIndex].discoXInc = (KeyFrame[playIndex + 1].discoX - KeyFrame[playIndex].discoX) / i_max_steps;
+	KeyFrame[playIndex].discoZInc = (KeyFrame[playIndex + 1].discoZ - KeyFrame[playIndex].discoZ) / i_max_steps;
+	KeyFrame[playIndex].porteroZInc = (KeyFrame[playIndex + 1].porteroZ - KeyFrame[playIndex].porteroZ) / i_max_steps;
+}
+
+// Poses de la jugada del local (el visitante usa las mismas, al revés).
+// En la práctica cada pose se acomodaba con el teclado y se guardaba con la tecla K;
+// aquí cada pose se escribe y se guarda con la misma función saveFrame().
+void cargarJugada(void)
+{
+	// Cuadro 0: sale del centro con el disco y el defensor lo persigue
+	pasPosX = 0.0f; pasPosZ = -5.5f; rotPas = 80.0f;
+	jugPosX = 6.0f; jugPosZ = 6.5f; rotJug = 90.0f; brazo = 0.0f;
+	discoX = 1.72f; discoZ = -5.25f; porteroZ = 0.0f;
+	saveFrame();
+
+	// Cuadro 1: sigue avanzando con el disco
+	pasPosX = 6.0f; pasPosZ = -4.5f; rotPas = 70.0f;
+	jugPosX = 10.0f; jugPosZ = 5.8f; rotJug = 95.0f; brazo = 0.0f;
+	discoX = 7.65f; discoZ = -3.95f; porteroZ = 0.0f;
+	saveFrame();
+
+	// Cuadro 2: da el pase a su compañero
+	pasPosX = 9.5f; pasPosZ = -3.5f; rotPas = 45.0f;
+	jugPosX = 13.0f; jugPosZ = 5.2f; rotJug = 100.0f; brazo = 0.0f;
+	discoX = 10.77f; discoZ = -2.31f; porteroZ = 0.0f;
+	saveFrame();
+
+	// Cuadro 3: el compañero recibe el disco
+	pasPosX = 12.0f; pasPosZ = -2.5f; rotPas = 60.0f;
+	jugPosX = 16.0f; jugPosZ = 4.4f; rotJug = 100.0f; brazo = 0.0f;
+	discoX = 17.71f; discoZ = 4.05f; porteroZ = 0.0f;
+	saveFrame();
+
+	// Cuadro 4: el que recibe avanza hacia la portería
+	pasPosX = 14.0f; pasPosZ = -1.8f; rotPas = 75.0f;
+	jugPosX = 19.0f; jugPosZ = 3.6f; rotJug = 95.0f; brazo = 0.0f;
+	discoX = 20.73f; discoZ = 3.4f; porteroZ = 0.15f;
+	saveFrame();
+
+	// Cuadro 5: levanta el palo; el disco se queda adelante
+	pasPosX = 15.0f; pasPosZ = -1.5f; rotPas = 80.0f;
+	jugPosX = 19.8f; jugPosZ = 3.3f; rotJug = 105.0f; brazo = 70.0f;
+	discoX = 21.87f; discoZ = 2.7f; porteroZ = 0.2f;
+	saveFrame();
+
+	// Cuadro 6: baja el palo y le pega al disco
+	pasPosX = 16.0f; pasPosZ = -1.2f; rotPas = 85.0f;
+	jugPosX = 20.2f; jugPosZ = 3.2f; rotJug = 105.0f; brazo = 0.0f;
+	discoX = 21.87f; discoZ = 2.7f; porteroZ = 0.2f;
+	saveFrame();
+
+	// Cuadro 7: el disco entra por la esquina (gol); el portero se lanzó tarde
+	pasPosX = 16.5f; pasPosZ = -1.0f; rotPas = 90.0f;
+	jugPosX = 20.6f; jugPosZ = 3.05f; rotJug = 105.0f; brazo = -30.0f;
+	discoX = 27.55f; discoZ = 0.5f; porteroZ = 0.45f;
+	saveFrame();
+
+	// Cuadro 8: festejo
+	pasPosX = 17.0f; pasPosZ = -0.8f; rotPas = 90.0f;
+	jugPosX = 22.5f; jugPosZ = 2.2f; rotJug = 140.0f; brazo = -100.0f;
+	discoX = 27.55f; discoZ = 0.5f; porteroZ = 0.45f;
+	saveFrame();
+}
 
 int main()
 {
@@ -129,6 +278,7 @@ int main()
 		return EXIT_FAILURE;
 	}
 	glfwMakeContextCurrent(window);
+	glfwSwapInterval(1);   // 60 cuadros por segundo, para que los keyframes vayan a la misma velocidad
 	glfwGetFramebufferSize(window, &SCREEN_WIDTH, &SCREEN_HEIGHT);
 
 	// Funciones que atienden el teclado y el mouse
@@ -164,6 +314,41 @@ int main()
 	Model F_LeftLeg((char *)"Models/F_LeftLegDog.obj");
 	Model B_RightLeg((char *)"Models/B_RightLegDog.obj");
 	Model B_LeftLeg((char *)"Models/B_LeftLegDog.obj");
+
+	// KeyFrames
+	for (int i = 0; i < MAX_FRAMES; i++)
+	{
+		KeyFrame[i].pasPosX = 0;
+		KeyFrame[i].pasPosZ = 0;
+		KeyFrame[i].rotPas = 0;
+		KeyFrame[i].pasXInc = 0;
+		KeyFrame[i].pasZInc = 0;
+		KeyFrame[i].rotPasInc = 0;
+		KeyFrame[i].jugPosX = 0;
+		KeyFrame[i].jugPosZ = 0;
+		KeyFrame[i].rotJug = 0;
+		KeyFrame[i].brazo = 0;
+		KeyFrame[i].discoX = 0;
+		KeyFrame[i].discoZ = 0;
+		KeyFrame[i].incX = 0;
+		KeyFrame[i].incZ = 0;
+		KeyFrame[i].rotJugInc = 0;
+		KeyFrame[i].brazoInc = 0;
+		KeyFrame[i].discoXInc = 0;
+		KeyFrame[i].discoZInc = 0;
+		KeyFrame[i].porteroZ = 0;
+		KeyFrame[i].porteroZInc = 0;
+	}
+	cargarJugada();
+	resetElements();   // el jugador espera en la pose del primer cuadro
+
+	// Controles en la consola, para tenerlos a la vista
+	std::cout << "\nControles:" << std::endl;
+	std::cout << "  W A S D y mouse: moverse y mirar" << std::endl;
+	std::cout << "  G: jugada completa (keyframes): anota el local y luego el visitante" << std::endl;
+	std::cout << "  C: camara de transmision          V: ojos del jugador que tira" << std::endl;
+	std::cout << "  L: reflectores                    1 / 2: gol local / visitante    0: marcador en 0" << std::endl;
+	std::cout << "  ESC: salir" << std::endl;
 
 	// Vértices del cubo
 	GLfloat vertices[] =
@@ -278,13 +463,27 @@ int main()
 		glClearColor(0.05f, 0.06f, 0.09f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		// Lado del equipo que ataca: el visitante usa las mismas poses al revés
+		float lado = (equipo == 0) ? 1.0f : -1.0f;
+		float giroLado = (equipo == 0) ? 0.0f : 180.0f;
+		// La cámara de transmisión y el reflector siguen al disco
+		glm::vec3 objetivo(discoX * lado, 0.0f, discoZ * lado);
+
 		// Vista: usamos la cámara libre o la de transmisión, según la tecla C
 		glm::mat4 view;
 		glm::vec3 posCamara;
-		if (camTransmision)
+		if (camJugador)
 		{
-			posCamara = glm::vec3(posJugador.x * 0.7f, 9.0f, 20.0f);
-			view = glm::lookAt(posCamara, posJugador + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			// Ojos del jugador que tira: a 1.75 m de alto, un poco adelante de su cabeza,
+			// mirando hacia donde está volteando (un poco hacia el hielo)
+			glm::vec3 adelante(sin(glm::radians(rotJug + giroLado)), 0.0f, cos(glm::radians(rotJug + giroLado)));
+			posCamara = glm::vec3(jugPosX * lado, 1.75f, jugPosZ * lado) + adelante * 0.7f;
+			view = glm::lookAt(posCamara, posCamara + adelante * 5.0f + glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		}
+		else if (camTransmision)
+		{
+			posCamara = glm::vec3(objetivo.x * 0.7f, 9.0f, 20.0f);
+			view = glm::lookAt(posCamara, objetivo + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		}
 		else
 		{
@@ -341,7 +540,7 @@ int main()
 
 		// Reflector de cono: está en el techo y siempre apunta al jugador
 		glm::vec3 posCanon(0.0f, 15.0f, 10.0f);   // colgado del techo
-		glm::vec3 dirCanon = glm::normalize(posJugador + glm::vec3(0.0f, 1.0f, 0.0f) - posCanon);
+		glm::vec3 dirCanon = glm::normalize(objetivo + glm::vec3(0.0f, 1.0f, 0.0f) - posCanon);
 		glm::vec3 luzCanon = reflectores ? glm::vec3(1.0f, 1.0f, 0.9f) : glm::vec3(0.0f);
 		glUniform3f(glGetUniformLocation(lightingShader.Program, "spotLight.position"), posCanon.x, posCanon.y, posCanon.z);
 		glUniform3f(glGetUniformLocation(lightingShader.Program, "spotLight.direction"), dirCanon.x, dirCanon.y, dirCanon.z);
@@ -402,19 +601,20 @@ int main()
 			DibujarCubo(lightingShader, glm::vec3(29.5f * lado, 2.95f, 0.0f), glm::vec3(0.3f, 0.2f, 0.3f), texNegro);
 
 		// Personas en la pista (modelado jerárquico)
-		// Jugador animado del equipo local (tecla P)
-		DibujarPersona(lightingShader, posJugador, rotJugador, piernaJug, brazoJug, texRojo, texNegro, JUGADOR);
-		// Otros jugadores quietos, en posición de juego (el azul de abajo)
-		DibujarPersona(lightingShader, glm::vec3(-8.0f, 0.0f, 6.0f), 90.0f, 5.0f, 0.0f, texRojo, texNegro, JUGADOR);
-		DibujarPersona(lightingShader, glm::vec3(12.0f, 0.0f, 5.0f), -110.0f, 10.0f, 0.0f, texAzul, texNegro, JUGADOR);
-		// Porteros dentro de su área, mirando al centro
-		DibujarPersona(lightingShader, glm::vec3(-26.3f, 0.0f, 0.0f), 90.0f, 0.0f, 0.0f, texRojo, texNegro, PORTERO);
-		DibujarPersona(lightingShader, glm::vec3(26.3f, 0.0f, 0.0f), -90.0f, 0.0f, 0.0f, texAzul, texNegro, PORTERO);
-		// Defensor azul: marca al jugador rojo que patina (tecla P). Usa la misma posición del rojo,
-		// recorrida 1.6 m hacia las bancas, y los mismos giros y ángulos de piernas y brazos.
-		DibujarPersona(lightingShader, posJugador + glm::vec3(0.0f, 0.0f, -1.6f), rotJugador, piernaJug, brazoJug, texAzul, texNegro, JUGADOR);
-		// Árbitro: sigue la jugada por la orilla del frente (va a la mitad de la x del jugador rojo)
-		DibujarPersona(lightingShader, glm::vec3(posJugador.x * 0.5f, 0.0f, 8.0f), 180.0f, piernaJug, 0.0f, texRayas, texNegro, ARBITRO);
+		// La jugada (tecla G): el que da el pase, el que tira y el defensor que persigue al del pase
+		GLuint texAtaca = (equipo == 0) ? texRojo : texAzul;
+		GLuint texDefiende = (equipo == 0) ? texAzul : texRojo;
+		glm::vec3 posPas(pasPosX * lado, 0.0f, pasPosZ * lado);
+		DibujarPersona(lightingShader, posPas, rotPas + giroLado, piernaJug, brazoJug, texAtaca, texNegro, JUGADOR);
+		DibujarPersona(lightingShader, glm::vec3(jugPosX * lado, 0.0f, jugPosZ * lado), rotJug + giroLado, piernaJug, brazo, texAtaca, texNegro, JUGADOR);
+		// Defensor: va 1.5 m detrás del que da el pase, mirando hacia el mismo lado
+		glm::vec3 haciaAdelante(sin(glm::radians(rotPas + giroLado)), 0.0f, cos(glm::radians(rotPas + giroLado)));
+		DibujarPersona(lightingShader, posPas - 1.5f * haciaAdelante + glm::vec3(0.0f, 0.0f, -0.8f * lado), rotPas + giroLado, -piernaJug, brazoJug, texDefiende, texNegro, JUGADOR);
+		// Porteros: el que defiende se mueve hacia el lado del tiro (keyframes); el otro se queda en medio
+		DibujarPersona(lightingShader, glm::vec3(26.3f, 0.0f, (equipo == 0) ? porteroZ : 0.0f), -90.0f, 0.0f, 0.0f, texAzul, texNegro, PORTERO);
+		DibujarPersona(lightingShader, glm::vec3(-26.3f, 0.0f, (equipo == 1) ? -porteroZ : 0.0f), 90.0f, 0.0f, 0.0f, texRojo, texNegro, PORTERO);
+		// Árbitro: sigue al disco por la orilla del frente
+		DibujarPersona(lightingShader, glm::vec3(discoX * lado * 0.5f, 0.0f, 8.0f), 180.0f, piernaJug, 0.0f, texRayas, texNegro, ARBITRO);
 
 		// Detalle: una pelea en la esquina. El jugador azul quedó tirado junto a una mancha roja
 		// (un cuadro rojo plano) y el rojo festeja con los brazos arriba.
@@ -512,11 +712,9 @@ int main()
 		glm::mat4 model(1);
 		GLint modelLoc = glGetUniformLocation(lightingShader.Program, "model");
 
-		// Disco: va delante del palo del jugador animado, así que también hereda su movimiento
+		// Disco: solo hay uno en juego (keyframes, tecla G)
 		model = glm::mat4(1);
-		model = glm::translate(model, posJugador);
-		model = glm::rotate(model, glm::radians(rotJugador), glm::vec3(0.0f, 1.0f, 0.0f));
-		model = glm::translate(model, glm::vec3(0.13f, 0.012f, 1.75f));
+		model = glm::translate(model, glm::vec3(discoX * lado, 0.012f, discoZ * lado));
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		disco.Draw(lightingShader);
 
@@ -852,10 +1050,71 @@ GLuint CargarTextura(const char *ruta)
 // Animaciones: se llama en cada cuadro, igual que en la práctica de animación
 void Animation()
 {
-	// Jugador: máquina de estados como la caminata del perro
-	if (animJugador)
+	// Jugada de gol con keyframes (igual que en la práctica)
+	if (play)
 	{
-		// Piernas y brazos oscilan entre -25 y 25 grados
+		if (i_curr_steps >= i_max_steps) // terminó la transición entre dos cuadros
+		{
+			playIndex++;
+			// Al llegar al cuadro 7 el disco ya está dentro de la portería: gol del equipo que ataca
+			if (playIndex == 7)
+			{
+				if (equipo == 0 && golesLocal < 9)
+				{
+					golesLocal++;
+					tiempoGolDer = 3.0f;
+				}
+				if (equipo == 1 && golesVisita < 9)
+				{
+					golesVisita++;
+					tiempoGolIzq = 3.0f;
+				}
+				PlaySound(TEXT("Sounds/gol.wav"), NULL, SND_FILENAME | SND_ASYNC);   // bocina de gol
+			}
+			if (playIndex > FrameIndex - 2) // terminó toda la animación
+			{
+				std::cout << "termina anim" << std::endl;
+				playIndex = 0;
+				if (equipo == 0)   // terminó el local: ahora ataca el visitante con las mismas poses
+				{
+					equipo = 1;
+					resetElements();
+					interpolation();
+					i_curr_steps = 0;
+				}
+				else               // terminó el visitante: se acaba la jugada
+				{
+					equipo = 0;
+					play = false;
+				}
+			}
+			else // siguiente transición
+			{
+				i_curr_steps = 0;
+				interpolation();
+			}
+		}
+		else
+		{
+			// Se suma el incremento de cada variable
+			jugPosX += KeyFrame[playIndex].incX;
+			jugPosZ += KeyFrame[playIndex].incZ;
+			rotJug += KeyFrame[playIndex].rotJugInc;
+			brazo += KeyFrame[playIndex].brazoInc;
+			discoX += KeyFrame[playIndex].discoXInc;
+			discoZ += KeyFrame[playIndex].discoZInc;
+			porteroZ += KeyFrame[playIndex].porteroZInc;
+			pasPosX += KeyFrame[playIndex].pasXInc;
+			pasPosZ += KeyFrame[playIndex].pasZInc;
+			rotPas += KeyFrame[playIndex].rotPasInc;
+			i_curr_steps++;
+		}
+	}
+
+	// Piernas de los que patinan: suben y bajan entre -25 y 25 grados mientras corre la jugada,
+	// con la misma máquina de estados de la caminata del perro
+	if (play)
+	{
 		if (!paso)
 		{
 			piernaJug += 60.0f * deltaTime;
@@ -869,38 +1128,6 @@ void Animation()
 				paso = !paso;
 		}
 		brazoJug = -piernaJug * 0.6f;
-
-		// Recorrido: avanza, da la vuelta, regresa y vuelve a dar la vuelta
-		if (estadoJug == 0)        // avanza hacia +x
-		{
-			posJugador.x += 6.0f * deltaTime;
-			if (posJugador.x > 20.0f)
-				estadoJug = 1;
-		}
-		else if (estadoJug == 1)   // gira 180 grados
-		{
-			rotJugador += 180.0f * deltaTime;
-			if (rotJugador >= 270.0f)
-			{
-				rotJugador = 270.0f;
-				estadoJug = 2;
-			}
-		}
-		else if (estadoJug == 2)   // regresa hacia -x
-		{
-			posJugador.x -= 6.0f * deltaTime;
-			if (posJugador.x < -20.0f)
-				estadoJug = 3;
-		}
-		else if (estadoJug == 3)   // gira 180 grados
-		{
-			rotJugador -= 180.0f * deltaTime;
-			if (rotJugador <= 90.0f)
-			{
-				rotJugador = 90.0f;
-				estadoJug = 0;
-			}
-		}
 	}
 
 	// Luces de gol: se apagan solas después de 3 segundos
@@ -947,11 +1174,35 @@ void KeyCallback(GLFWwindow *window, int key, int scancode, int action, int mode
 
 	// Cambiar de cámara
 	if (key == GLFW_KEY_C && action == GLFW_PRESS)
+	{
 		camTransmision = !camTransmision;
+		camJugador = false;
+	}
 
-	// El jugador empieza o deja de patinar
-	if (key == GLFW_KEY_P && action == GLFW_PRESS)
-		animJugador = !animJugador;
+	// Cámara desde los ojos del jugador que tira (jugada G)
+	if (key == GLFW_KEY_V && action == GLFW_PRESS)
+	{
+		camJugador = !camJugador;
+		camTransmision = false;
+	}
+
+	// Jugada con keyframes: G la reproduce desde el primer cuadro (empieza el local); si ya se reproduce, la detiene
+	if (key == GLFW_KEY_G && action == GLFW_PRESS)
+	{
+		if (play == false && (FrameIndex > 1))
+		{
+			equipo = 0;
+			resetElements();
+			interpolation();   // primera transición
+			play = true;
+			playIndex = 0;
+			i_curr_steps = 0;
+		}
+		else
+		{
+			play = false;
+		}
+	}
 
 	// Goles: suben el marcador (del 0 al 9) y encienden la luz de gol de esa portería.
 	// El local ataca la portería derecha y el visitante la izquierda.

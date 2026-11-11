@@ -1,7 +1,7 @@
 # Arena de Hockey sobre Hielo
 
 Proyecto Final de Computación Gráfica e Interacción Humano-Computadora (FI UNAM).
-Versión de la Iteración 4, con los ajustes de la revisión (mallas, jugadores en la banca y vallas nuevas).
+Versión de la Iteración 5: animación por keyframes. La tecla P de la Iteración 4 (el jugador que patinaba de un lado a otro) se reemplazó por la jugada completa con keyframes.
 
 ## Qué tiene hasta ahora
 
@@ -19,8 +19,9 @@ Versión de la Iteración 4, con los ajustes de la revisión (mallas, jugadores 
 | Carga de modelos | Público, palos, botellas, disco y porterías, hechos en Blender y exportados a `.obj`, y la mascota (el perro en piezas de la práctica de animación), con la clase `Model`; sus texturas se leen con SOIL2, como en la `Model.h` de la práctica. |
 | Texturas | Hielo, vallas con 5 anuncios (FI UNAM, FOUR LOQO, BACACHO, TACOSCHAMPS y ESQUITES), malla, cristal, madera, concreto, gradas roja y azul, hule, metal, playeras, rayas del árbitro, letrero de vestidores, marcador y números, cargadas con stb_image como en la práctica de texturizado. |
 | Iluminación II | `lighting.frag` con `DirLight`, 4 `PointLight` y un `SpotLight`; cubos de lámpara con `lamp.frag`. |
-| Animación | `Animation()` llamada en cada cuadro; el jugador patina con una máquina de estados como la caminata del perro, y un defensor azul y el árbitro lo siguen usando su misma posición; la luz de gol se prende 3 segundos con un contador que baja con `deltaTime`, y el número del marcador empieza 30% más grande y regresa a su tamaño con `glm::scale` (animación con escala); la mascota (parada en dos patas: el cuerpo gira 70° sobre la cadera y las patas traseras 70° al revés) saluda, voltea y mueve la cola con el seno del tiempo; `transparency` y `discard` para la red y `GL_BLEND` para el cristal. |
-| Cámara sintética | Cámara en primera persona (`Camera.h`) y cámara de transmisión con `glm::lookAt`. |
+| Animación | `Animation()` llamada en cada cuadro; durante la jugada las piernas y brazos de los que patinan suben y bajan con una máquina de estados como la caminata del perro; la luz de gol se prende 3 segundos con un contador que baja con `deltaTime`, y el número del marcador empieza 30% más grande y regresa a su tamaño con `glm::scale` (animación con escala); la mascota (parada en dos patas: el cuerpo gira 70° sobre la cadera y las patas traseras 70° al revés) saluda, voltea y mueve la cola con el seno del tiempo; `transparency` y `discard` para la red y `GL_BLEND` para el cristal. |
+| Animación por keyframes | La jugada completa (tecla G) con la estructura `FRAME`, el arreglo `KeyFrame` y las funciones `saveFrame()`, `resetElements()`, `interpolation()` y `Animation()` de la práctica. Se guardan 9 cuadros clave (`MAX_FRAMES 9`, como en la práctica) con la posición y el giro del que da el pase y del que tira, los brazos del que tira, el disco y el portero, y se interpolan en 45 pasos cada uno: sale del centro con el disco y un defensor lo persigue, da el pase, su compañero tira, el disco entra (sube el marcador, suena la bocina y se prende la luz de gol) y festeja. Al terminar, la misma jugada la hace el visitante hacia la otra portería, usando las mismas poses al revés (x y z con signo contrario y el giro + 180°). |
+| Cámara sintética | Cámara en primera persona como espectador (`Camera.h`), cámara desde los ojos del jugador que tira (V) y cámara de transmisión (C), las dos con `glm::lookAt`. |
 
 ## Luces
 
@@ -29,7 +30,7 @@ Versión de la Iteración 4, con los ajustes de la revisión (mallas, jugadores 
 | `dirLight` | Luz general del recinto, tenue. |
 | `pointLights[0]` y `[1]` | Reflectores del techo. Se apagan con **L**. |
 | `pointLights[2]` y `[3]` | Luces rojas de gol detrás de cada portería. Se prenden 3 segundos al anotar. |
-| `spotLight` | Cañón de seguimiento: desde el techo apunta siempre al jugador. |
+| `spotLight` | Cañón de seguimiento: desde el techo apunta siempre al disco. |
 
 ## Controles
 
@@ -37,8 +38,9 @@ Versión de la Iteración 4, con los ajustes de la revisión (mallas, jugadores 
 | --- | --- |
 | W A S D | Moverse |
 | Mouse | Mirar |
+| G | Reproducir la jugada completa con keyframes: primero anota el local y luego el visitante (si se está reproduciendo, la detiene) |
 | C | Cambiar entre la cámara libre y la cámara de transmisión |
-| P | El jugador empieza o deja de patinar |
+| V | Ver desde los ojos del jugador que tira; otra vez V regresa |
 | L | Encender y apagar los reflectores |
 | 1 / 2 | Gol del local / visitante (marcador, luz de gol y bocina) |
 | 0 | Reiniciar el marcador |
@@ -71,7 +73,7 @@ Versión de la Iteración 4, con los ajustes de la revisión (mallas, jugadores 
      `opengl32.lib;glew32.lib;glfw3.lib;assimp-vc140-mt.lib;soil2-debug.lib;`
 7. Debug, x86 y F5.
 
-## Pendiente (Iteración 5)
+## Pendiente
 
-- Animación por keyframes (cuando veamos la práctica de keyframes, para hacerla igual que en clase).
-- Pruebas, documentación en PDF y video.
+- Pruebas en las computadoras de los tres integrantes.
+- Documentación en PDF y video.
